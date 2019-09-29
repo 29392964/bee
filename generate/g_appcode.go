@@ -1027,7 +1027,7 @@ func Get{{modelName}}ById(id int) (v *{{modelName}}, err error) {
 // GetAll{{modelName}} retrieves all {{modelName}} matches certain condition. Returns empty list if
 // no records exist
 func GetAll{{modelName}}(query map[string]string, fields []string, sortby []string, order []string,
-	offset int64, limit int64) (ml []interface{}, err error) {
+	offset int64, limit int64) (ml []interface{}, err error, count int64) {
 	o := orm.NewOrm()
 	qs := o.QueryTable(new({{modelName}}))
 	// query k=v
@@ -1052,7 +1052,7 @@ func GetAll{{modelName}}(query map[string]string, fields []string, sortby []stri
 				} else if order[i] == "asc" {
 					orderby = v
 				} else {
-					return nil, errors.New("Error: Invalid order. Must be either [asc|desc]")
+					return nil, errors.New("Error: Invalid order. Must be either [asc|desc]"), 0
 				}
 				sortFields = append(sortFields, orderby)
 			}
@@ -1066,16 +1066,16 @@ func GetAll{{modelName}}(query map[string]string, fields []string, sortby []stri
 				} else if order[0] == "asc" {
 					orderby = v
 				} else {
-					return nil, errors.New("Error: Invalid order. Must be either [asc|desc]")
+					return nil, errors.New("Error: Invalid order. Must be either [asc|desc]"), 0
 				}
 				sortFields = append(sortFields, orderby)
 			}
 		} else if len(sortby) != len(order) && len(order) != 1 {
-			return nil, errors.New("Error: 'sortby', 'order' sizes mismatch or 'order' size is not 1")
+			return nil, errors.New("Error: 'sortby', 'order' sizes mismatch or 'order' size is not 1"), 0
 		}
 	} else {
 		if len(order) != 0 {
-			return nil, errors.New("Error: unused 'order' fields")
+			return nil, errors.New("Error: unused 'order' fields"), 0
 		}
 	}
 
@@ -1097,9 +1097,10 @@ func GetAll{{modelName}}(query map[string]string, fields []string, sortby []stri
 				ml = append(ml, m)
 			}
 		}
-		return ml, nil
+		count, _ := qs.Count()
+		return ml, nil, count
 	}
-	return nil, err
+	return nil, err, 0
 }
 
 // Update{{modelName}} updates {{modelName}} by Id and returns error if
@@ -1135,9 +1136,10 @@ func Delete{{modelName}}(id int) (err error) {
 	CtrlTPL = `package controllers
 
 import (
+	"{{pkgPath}}/tools"
 	"{{pkgPath}}/models"
 	"encoding/json"
-	"errors"
+	// "errors"
 	"strconv"
 	"strings"
 
@@ -1169,13 +1171,16 @@ func (c *{{ctrlName}}Controller) Post() {
 	var v models.{{ctrlName}}
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &v); err == nil {
 		if _, err := models.Add{{ctrlName}}(&v); err == nil {
-			c.Ctx.Output.SetStatus(201)
-			c.Data["json"] = v
+			// c.Ctx.Output.SetStatus(201)
+			// c.Data["json"] = v
+			c.Data["json"] = tools.JsonResult(200)
 		} else {
-			c.Data["json"] = err.Error()
+			// c.Data["json"] = err.Error()
+			c.Data["json"] = tools.JsonResult(5001)
 		}
 	} else {
-		c.Data["json"] = err.Error()
+		// c.Data["json"] = err.Error()
+		c.Data["json"] = tools.JsonResult(5003)
 	}
 	c.ServeJSON()
 }
@@ -1192,9 +1197,12 @@ func (c *{{ctrlName}}Controller) GetOne() {
 	id, _ := strconv.Atoi(idStr)
 	v, err := models.Get{{ctrlName}}ById(id)
 	if err != nil {
-		c.Data["json"] = err.Error()
+		// c.Data["json"] = err.Error()
+		c.Data["json"] = tools.JsonResult(4004)
 	} else {
-		c.Data["json"] = v
+		// c.Data["json"] = v
+		result := &map[string]interface{}{"Code": 200, "Msg": "OK" ,"Data": &v}
+		c.Data["json"] = result
 	}
 	c.ServeJSON()
 }
@@ -1244,7 +1252,8 @@ func (c *{{ctrlName}}Controller) GetAll() {
 		for _, cond := range strings.Split(v, ",") {
 			kv := strings.SplitN(cond, ":", 2)
 			if len(kv) != 2 {
-				c.Data["json"] = errors.New("Error: invalid query key/value pair")
+				// c.Data["json"] = errors.New("Error: invalid query key/value pair")
+				c.Data["json"] = tools.JsonResult(5003)
 				c.ServeJSON()
 				return
 			}
@@ -1253,11 +1262,16 @@ func (c *{{ctrlName}}Controller) GetAll() {
 		}
 	}
 
-	l, err := models.GetAll{{ctrlName}}(query, fields, sortby, order, offset, limit)
+	l, err, count := models.GetAll{{ctrlName}}(query, fields, sortby, order, offset, limit)
 	if err != nil {
-		c.Data["json"] = err.Error()
+		c.Data["json"] = tools.JsonResult(5001)
 	} else {
-		c.Data["json"] = l
+		if count > 0{
+			result := &map[string]interface{}{"Code": 200, "Msg": "OK" ,"Count": count ,"Datas": &l}
+			c.Data["json"] = result
+		}else{
+			c.Data["json"] = tools.JsonResult(4004)
+		}
 	}
 	c.ServeJSON()
 }
@@ -1276,12 +1290,17 @@ func (c *{{ctrlName}}Controller) Put() {
 	v := models.{{ctrlName}}{Id: id}
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &v); err == nil {
 		if err := models.Update{{ctrlName}}ById(&v); err == nil {
-			c.Data["json"] = "OK"
+			// c.Data["json"] = "OK"
+			c.Data["json"] = tools.JsonResult(200)
 		} else {
-			c.Data["json"] = err.Error()
+			// c.Data["json"] = err.Error()
+			beego.Debug(err)
+			c.Data["json"] = tools.JsonResult(5001)
 		}
 	} else {
-		c.Data["json"] = err.Error()
+		// c.Data["json"] = err.Error()
+		beego.Debug(err)
+		c.Data["json"] = tools.JsonResult(5003)
 	}
 	c.ServeJSON()
 }
@@ -1297,20 +1316,19 @@ func (c *{{ctrlName}}Controller) Delete() {
 	idStr := c.Ctx.Input.Param(":id")
 	id, _ := strconv.Atoi(idStr)
 	if err := models.Delete{{ctrlName}}(id); err == nil {
-		c.Data["json"] = "OK"
+		// c.Data["json"] = "OK"
+		c.Data["json"] = tools.JsonResult(200)
 	} else {
-		c.Data["json"] = err.Error()
+		// c.Data["json"] = err.Error()
+		c.Data["json"] = tools.JsonResult(5003)
 	}
 	c.ServeJSON()
 }
 `
 	RouterTPL = `// @APIVersion 1.0.0
-// @Title beego Test API
-// @Description beego has a very cool tools to autogenerate documents for your API
-// @Contact astaxie@gmail.com
-// @TermsOfServiceUrl http://beego.me/
-// @License Apache 2.0
-// @LicenseUrl http://www.apache.org/licenses/LICENSE-2.0.html
+// @Title Test API
+// @Description documents for API
+// @Contact 29392964@qq.com
 package routers
 
 import (

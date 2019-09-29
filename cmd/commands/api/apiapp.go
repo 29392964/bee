@@ -534,6 +534,63 @@ func TestGet(t *testing.T) {
 
 `
 
+var apiFuncs = `package tools
+
+import (
+	"encoding/json"
+	"crypto/md5"
+    "encoding/hex"
+)
+
+func Md5V(str string) string  {
+    h := md5.New()
+    h.Write([]byte(str))
+    return hex.EncodeToString(h.Sum(nil))
+}
+
+func JsonV(str string) map[string]interface{}{
+	var d map[string]interface{}
+    json.Unmarshal([]byte(str), &d)
+    return d
+}
+
+func JsonResult(code int) map[string]interface{}{
+	var str string
+	switch code {
+		case 200:
+			str = '{"Code": 200, "Msg": "OK"}'
+		case 403:
+	    	str = '{"Code": 403, "Msg": "没有权限"}'
+	    case 404:
+	    	str = '{"Code": 404, "Msg": "服务器找不到请求的网页"}'
+	    case 4001:
+	    	str = '{"Code": 4001, "Msg": "用户名或密码错误"}'
+	    case 4004:
+	    	str = '{"Code": 4004, "Msg": "没有数据"}'
+	    case 5001:
+	    	str = '{"Code": 5001, "Msg": "数据错误"}'
+	    case 5002:
+	    	str = '{"Code": 5002, "Msg": "用户名已存在"}'
+	    case 5003:
+	    	str = '{"Code": 5003, "Msg": "参数错误"}'
+	    case 5004:
+	    	str = '{"Code": 5004, "Msg": "后缀名不符合上传要求"}'
+	    case 5005:
+	    	str = '{"Code": 5005, "Msg": "创建目录失败"}'
+	    case 5006:
+	    	str = '{"Code": 5006, "Msg": "写入文件失败"}'
+	    case 5007:
+	    	str = '{"Code": 5007, "Msg": "发送邮件失败"}'
+	    case 5008:
+	    	str = '{"Code": 5008, "Msg": "重复添加，已忽略"}'
+	    default:
+	    	str = '{"Code": 200, "Msg": "OK"}'
+	}
+	return JsonV(str)
+}
+
+`
+
 func init() {
 	CmdApiapp.Flag.Var(&generate.Tables, "tables", "List of table names separated by a comma.")
 	CmdApiapp.Flag.Var(&generate.SQLDriver, "driver", "Database driver. Either mysql, postgres or sqlite.")
@@ -574,8 +631,14 @@ func createAPI(cmd *commands.Command, args []string) int {
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "controllers"), "\x1b[0m")
 	os.Mkdir(path.Join(appPath, "tests"), 0755)
 	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tests"), "\x1b[0m")
+	os.Mkdir(path.Join(appPath, "tools"), 0755)
+	fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tools"), "\x1b[0m")
 
 	if generate.SQLConn != "" {
+		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "tools", "funcs.conf"), "\x1b[0m")
+		funcsContent := strings.Replace(apiFuncs, "'", "`", -1)
+		utils.WriteToFile(path.Join(appPath, "tools", "funcs.go"), funcsContent)
+
 		fmt.Fprintf(output, "\t%s%screate%s\t %s%s\n", "\x1b[32m", "\x1b[1m", "\x1b[21m", path.Join(appPath, "conf", "app.conf"), "\x1b[0m")
 		confContent := strings.Replace(apiconf, "{{.Appname}}", appName, -1)
 		confContent = strings.Replace(confContent, "{{.SQLConnStr}}", generate.SQLConn.String(), -1)
