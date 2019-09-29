@@ -638,6 +638,6 @@ func createAPI(cmd *commands.Command, args []string) int {
 		utils.WriteToFile(path.Join(appPath, "main.go"),
 			strings.Replace(apiMaingo, "{{.Appname}}", packPath, -1))
 	}
-	beeLogger.Log.Success("New API successfully created!")
+	beeLogger.Log.Success("New API successfully created!!!")
 	return 0
 }
